@@ -10,3 +10,9 @@ Pillow
 aiofiles
 scikit-learn
 matplotlib
+opencv-python
+albumentations
+httpx
+shapely
+torch
+torch-vision

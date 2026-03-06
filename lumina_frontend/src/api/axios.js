@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: 'http://localhost:8000',
 });
 
@@ -69,6 +69,46 @@ export const updateImageSelection = async (imageId, excludedIds) => {
 
 export const getProjectDetails = async (projectId) => {
   return api.get(`/projects/${projectId}`);
+};
+
+// Add or update this function in your api/axios.js
+export const saveUserPolygon = async (imageId, points) => {
+  // Assuming your axios instance is named 'api' or you use 'axios' directly
+  // Make sure the URL matches your router prefix (e.g., /api/projects/images/...)
+  const response = await api.post(`/projects/images/${imageId}/user_polygons`, {
+    points: points
+  });
+
+  // Return the full Axios response so callers can read `response.data` safely
+  return response;
+};
+
+// In api/axios.js
+export const deleteUserPolygon = async (imageId, polyId) => {
+  // Call backend to delete the polygon and return the response data
+  const response = await api.delete(`/projects/images/${imageId}/user_polygons/${polyId}`);
+  return response.data;
+};
+
+// --- IN api/axios.js ---
+
+// Add a single custom panel
+export const addUserPanel = async (imageId, panelData) => {
+  // Replace `api` with whatever your configured axios instance is named
+  const response = await api.post(`/projects/images/${imageId}/panels`, panelData);
+  return response.data;
+};
+
+// Delete a specific custom panel
+export const deleteUserPanel = async (imageId, panelId) => {
+  const response = await api.delete(`/projects/images/${imageId}/panels/${panelId}`);
+  return response.data;
+};
+
+// Clear all panels from an image
+export const clearAllUserPanels = async (imageId) => {
+  const response = await api.delete(`/projects/images/${imageId}/panels`);
+  return response.data;
 };
 
 export default api;

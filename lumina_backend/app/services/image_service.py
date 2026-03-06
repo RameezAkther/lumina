@@ -71,17 +71,14 @@ async def update_image_status(db, image_id: str, **update_fields):
 
 async def update_image_selection(db, image_id: str, excluded_ids: List[int]):
     """Update excluded polygons for an image"""
-    excluded_ids = [int(id) for id in excluded_ids]
-    
+    clean_ids = [int(x) if str(x).isdigit() else str(x) for x in excluded_ids]
+
     result = await db["images"].update_one(
         {"_id": ObjectId(image_id)},
-        {"$set": {"excluded_polygons": excluded_ids}}
+        {"$set": {"excluded_polygons": clean_ids}}
     )
     
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Image not found")
-    
-    return len(excluded_ids)
+    return len(clean_ids)
 
 
 async def find_child_tiles(db, project_id: str, parent_image_filename: str):
@@ -95,11 +92,10 @@ async def find_child_tiles(db, project_id: str, parent_image_filename: str):
 
 
 async def get_processed_images(db, project_id: str, image_id: str = None):
-    """Get processed images (source or non-tiled) for analysis"""
+    """Get processed images for analysis (includes both source and tiled images)"""
     query = {
         "project_id": project_id,
-        "status": "processed",
-        "$or": [{"is_source": True}, {"is_tiled": False}]
+        "status": "processed"
     }
     
     if image_id:

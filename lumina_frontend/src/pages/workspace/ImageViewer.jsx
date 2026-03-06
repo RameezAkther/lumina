@@ -89,17 +89,24 @@ const ImageViewer = ({ projectId }) => {
         <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
           <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Model Selection</label>
           <div className="space-y-3">
-            <select 
-              className="w-full text-sm border border-gray-300 rounded-md p-2 outline-none focus:ring-2 focus:ring-lumina-500"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={isInferencing}
-            >
-              <option value="ResAttUNet">ResAttUNet</option>
-              <option value="Aero-P2 Net">Aero-P2 Net</option>
-              <option value="SegFormer">SegFormer</option>
-              <option value="Optimal Model">Optimal Model (Auto)</option>
-            </select>
+            <div>
+              <select 
+                className="w-full text-sm border border-gray-300 rounded-md p-2 outline-none focus:ring-2 focus:ring-lumina-500"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={isInferencing}
+              >
+                <option value="ResAttUNet">ResAttUNet</option>
+                <option value="Aero-P2 Net">Aero-P2 Net</option>
+                <option value="SegFormer">SegFormer</option>
+                <option value="Optimal Model">Optimal Model (Auto)</option>
+              </select>
+              
+              {/* --- NEW: Last used model info --- */}
+              <p className="text-[11px] text-gray-500 mt-1.5 ml-1">
+                Last used model: <span className="font-semibold text-gray-700">{selectedImage?.model_used || 'nill'}</span>
+              </p>
+            </div>
             
             <button 
               onClick={handleInference}

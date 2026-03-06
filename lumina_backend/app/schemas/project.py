@@ -31,6 +31,8 @@ class ProjectListResponse(BaseModel):
     status: str
     total_images: Optional[int] = 0
     solar_config: Optional[dict] = {}
+    location_config: Optional[dict] = {}
+    historical_results: Optional[dict] = {}
 
 class FileAnalysisResult(BaseModel):
     filename: str
@@ -41,3 +43,32 @@ class FileAnalysisResult(BaseModel):
 
 class AnalysisResponse(BaseModel):
     results: List[FileAnalysisResult]
+
+class LocationParams(BaseModel):
+    country: str
+    state: str
+    district: str
+    area: Optional[str] = None
+    panel_capacity_kw: Optional[float] = 0.4 # Default 400W
+    image_id: Optional[str] = None # If None, applies globally
+
+class UserPolygonPayload(BaseModel):
+    points: List[List[float]]
+
+class UserPanelPayload(BaseModel):
+    id: str
+    x: int
+    y: int
+    w: int
+    h: int
+
+class ForecastParams(BaseModel):
+    system_cost: Optional[float] = None
+    electricity_rate: Optional[float] = None
+    cost_per_panel: Optional[float] = None
+    currency: Optional[str] = None
+    image_id: Optional[str] = None
+    
+    # New flags for smart handling
+    is_initial_load: Optional[bool] = False
+    target_currency_for_conversion: Optional[str] = None

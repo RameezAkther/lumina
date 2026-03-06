@@ -1,14 +1,15 @@
+import os
+import json
 import cv2
 import numpy as np
+import uuid # <-- NEW: For generating unique panel IDs
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-
 
 # ==========================================
 # 1. CONFIGURATION & METADATA
 # ==========================================
 
-# Database of Ground Sampling Distances (GSD) in meters/pixel
 DATASET_GSD = {
     "AIRS": 0.075,      # 7.5 cm/pixel
     "NACALA": 0.05,     # ~5 cm/pixel (High Res Drone)
@@ -17,30 +18,22 @@ DATASET_GSD = {
     "WHU_RASTER": 0.30  # 30 cm/pixel (Downsampled version)
 }
 
-# Standard Residential Panel Dimensions (Real World Meters)
-# Format: (Length_meters, Width_meters)
 REAL_PANEL_DIMS = (1.7, 1.0) 
-
-# Required Gap between panels (clamps/spacing) in meters
-REAL_GAP_METER = 0.02  # 2 cm
+REAL_GAP_METER = 0.02  
 
 # ==========================================
 # 2. HELPER: DYNAMIC SCALING
 # ==========================================
 def get_pixel_dimensions(dataset_name, real_dims, real_gap):
-    """
-    Converts real-world meters to image pixels based on dataset GSD.
-    """
+    """Converts real-world meters to image pixels based on dataset GSD."""
     if dataset_name not in DATASET_GSD:
         raise ValueError(f"Dataset {dataset_name} not found. Available: {list(DATASET_GSD.keys())}")
     
     gsd = DATASET_GSD[dataset_name]
     
-    # Calculate pixels (Meters / GSD)
-    # We use ceil/round to ensure we don't underestimate space required
     length_px = round(real_dims[0] / gsd)
     width_px = round(real_dims[1] / gsd)
-    gap_px = max(1, round(real_gap / gsd)) # Minimum 1 pixel gap for visualization
+    gap_px = max(1, round(real_gap / gsd))
     
     print(f"\n[INFO] Dataset: {dataset_name} (GSD: {gsd} m/px)")
     print(f"[INFO] Real Panel: {real_dims[0]}m x {real_dims[1]}m")
@@ -48,8 +41,27 @@ def get_pixel_dimensions(dataset_name, real_dims, real_gap):
     
     return (length_px, width_px), gap_px
 
+def remove_excluded_polygons(mask, polygons_path, excluded_ids):
+    """Blacks out excluded polygons from the placement mask."""
+    if not polygons_path or not excluded_ids or not os.path.exists(polygons_path):
+        return mask
+
+    try:
+        with open(polygons_path, 'r') as f:
+            polygons_data = json.load(f)
+
+        for poly in polygons_data:
+            if poly.get("id") in excluded_ids:
+                points = np.array(poly.get("points"), dtype=np.int32)
+                cv2.fillPoly(mask, [points], 0) 
+                
+    except Exception as e:
+        print(f"Error removing excluded polygons: {e}")
+
+    return mask
+
 # ==========================================
-# 3. SEGMENTATION LOGIC (Your Existing Code)
+# 3. SEGMENTATION LOGIC
 # ==========================================
 def extract_placeable_area_multicolor(image_path, mask_path, k_clusters=5, min_brightness=40):
     img = cv2.imread(image_path)
@@ -71,8 +83,18 @@ def extract_placeable_area_multicolor(image_path, mask_path, k_clusters=5, min_b
     if rooftop_mask is None: 
         print(f"Error: Could not load mask at {mask_path}")
         return None, None, None
+
+    rooftop_mask_orig = rooftop_mask.copy()
+    unique_vals = np.unique(rooftop_mask_orig)
+    if unique_vals.size > 8:
+        print(f"[ERROR] Provided mask at {mask_path} does not look like a binary rooftop mask. Aborting.")
+        return None, None, None
         
     _, rooftop_mask = cv2.threshold(rooftop_mask, 127, 255, cv2.THRESH_BINARY)
+
+    if cv2.countNonZero(rooftop_mask) == 0:
+        print(f"[INFO] Mask at {mask_path} is completely empty. No rooftops detected.")
+        return None, None, rooftop_mask
 
     # --- Texture Analysis ---
     gray = cv2.cvtColor(img_bright, cv2.COLOR_BGR2GRAY)
@@ -97,7 +119,6 @@ def extract_placeable_area_multicolor(image_path, mask_path, k_clusters=5, min_b
     color_mask = np.zeros_like(rooftop_mask)
     coords = np.column_stack(np.where(rooftop_mask > 0))
     
-    # Check brightness of each cluster
     valid_hsv_pixels = img_hsv[rooftop_mask > 0]
     cluster_brightness = {}
     
@@ -118,7 +139,9 @@ def extract_placeable_area_multicolor(image_path, mask_path, k_clusters=5, min_b
     combined_raw = cv2.bitwise_and(color_mask, smooth_roof)
     clean_mask = cv2.morphologyEx(combined_raw, cv2.MORPH_CLOSE, kernel, iterations=3)
     clean_mask = cv2.morphologyEx(clean_mask, cv2.MORPH_OPEN, kernel, iterations=2)
-    
+    clean_mask = (clean_mask > 0).astype(np.uint8) * 255
+    clean_mask = cv2.bitwise_and(clean_mask, rooftop_mask)
+
     vis = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).copy()
     vis[clean_mask > 0] = [0, 255, 0]
     
@@ -127,99 +150,122 @@ def extract_placeable_area_multicolor(image_path, mask_path, k_clusters=5, min_b
 # ==========================================
 # 4. PLACEMENT LOGIC
 # ==========================================
-def place_panels(img, placeable_mask, panel_w, panel_h, gap):
-    height, width = placeable_mask.shape
-    placement_vis = img.copy()
-    total_panels = 0
+def get_panel_slots(binary_mask, panel_w, panel_h, gap):
+    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    rooftop_slots = []
     
     step_y = panel_h + gap
     step_x = panel_w + gap
-    
-    for y in range(0, height, step_y):
-        for x in range(0, width, step_x):
-            y2 = y + panel_h
-            x2 = x + panel_w
-            
-            if y2 >= height or x2 >= width: continue
-            
-            roi = placeable_mask[y:y2, x:x2]
-            area_pixels = panel_w * panel_h
-            valid_pixels = cv2.countNonZero(roi)
-            
-            # Tolerance: 90% of the panel area must be on valid roof
-            if valid_pixels > (0.90 * area_pixels):
-                total_panels += 1
-                # Draw Panel (Blue)
-                cv2.rectangle(placement_vis, (x, y), (x2, y2), (255, 0, 0), 1)
-                # Draw Cell (Dark Blue)
-                if panel_w > 2 and panel_h > 2: # Only draw inner detail if large enough
-                    cv2.rectangle(placement_vis, (x+1, y+1), (x2-1, y2-1), (100, 0, 0), -1)
-                else:
-                    cv2.rectangle(placement_vis, (x, y), (x2, y2), (100, 0, 0), -1)
 
-    return total_panels, placement_vis
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        if w < panel_w or h < panel_h: continue
+        
+        current_roof = []
+        for yy in range(y, y + h, step_y):
+            for xx in range(x, x + w, step_x):
+                yy2 = yy + panel_h
+                xx2 = xx + panel_w
+                if yy2 >= binary_mask.shape[0] or xx2 >= binary_mask.shape[1]: continue
+                    
+                roi = binary_mask[yy:yy2, xx:xx2]
+                valid_pixels = cv2.countNonZero(roi)
+                
+                if valid_pixels > (0.90 * panel_w * panel_h):
+                    current_roof.append((xx, yy, xx2, yy2))
+        
+        if current_roof:
+            rooftop_slots.append(current_roof)
+            
+    return rooftop_slots
 
-def optimize_panel_placement(img, placeable_mask, dataset_name):
-    """
-    Wrapper that handles the dynamic sizing and orientation check.
-    """
-    # 1. Calculate Pixel Dimensions dynamically
-    (p_len_px, p_wid_px), gap_px = get_pixel_dimensions(dataset_name, REAL_PANEL_DIMS, REAL_GAP_METER)
+def draw_scattered_panels(img, rooftop_slots, panel_w, panel_h, limit=None):
+    placement_vis = img.copy()
+    selected_slots = []
+    panels_data = [] # <--- NEW: Store coordinate data
     
-    if p_len_px == 0 or p_wid_px == 0:
-        print("[WARNING] Image resolution is too low for this panel size. Panels would be 0 pixels.")
-        return 0, img
-
-    # 2. Try Portrait (L x W)
-    count1, vis1 = place_panels(img, placeable_mask, p_wid_px, p_len_px, gap_px)
-    
-    # 3. Try Landscape (W x L)
-    count2, vis2 = place_panels(img, placeable_mask, p_len_px, p_wid_px, gap_px)
-    
-    print(f"  Portrait count: {count1}")
-    print(f"  Landscape count: {count2}")
-    
-    if count1 >= count2:
-        return count1, vis1
+    if limit is None:
+        for roof in rooftop_slots: 
+            selected_slots.extend(roof)
     else:
-        return count2, vis2
+        roofs = [list(roof) for roof in rooftop_slots] 
+        remaining = limit
+        
+        while remaining > 0 and any(roofs):
+            for roof in roofs:
+                if remaining <= 0: break
+                if roof: 
+                    selected_slots.append(roof.pop(0))
+                    remaining -= 1
+                    
+    for (x, y, x2, y2) in selected_slots:
+        # Draw on the PNG (Legacy / Backup)
+        cv2.rectangle(placement_vis, (x, y), (x2, y2), (255, 0, 0), 1)
+        if panel_w > 2 and panel_h > 2:
+            cv2.rectangle(placement_vis, (x+1, y+1), (x2-1, y2-1), (100, 0, 0), -1)
+        else:
+            cv2.rectangle(placement_vis, (x, y), (x2, y2), (100, 0, 0), -1)
 
-def run_solar_placement(image_path, mask_path, gsd, panel_l, panel_w, gap_m, max_panels_limit=None):
-    """
-    Runs the placement logic on a single image.
-    max_panels_limit: If set (e.g. 50), stops placing after 50 panels.
-    """
-    
-    # 1. Pixel Conversions
+        # <--- NEW: Save the coordinates for the Frontend SVG
+        panels_data.append({
+            "id": f"sys_{uuid.uuid4().hex[:8]}", # Unique ID for React map key and deletion
+            "x": int(x),
+            "y": int(y),
+            "w": int(x2 - x),
+            "h": int(y2 - y)
+        })
+            
+    return len(selected_slots), placement_vis, panels_data # <--- NEW: Return data array
+
+# ==============================================================
+# MAIN FUNCTION
+# ==============================================================
+def run_solar_placement(image_path, mask_path, gsd, panel_l, panel_w, gap_m, max_panels_limit=None, polygons_path=None, excluded_polygons=None, user_polygons=None):
     length_px = round(panel_l / gsd)
     width_px = round(panel_w / gsd)
     gap_px = max(1, round(gap_m / gsd))
     
-    if length_px == 0 or width_px == 0:
-        return 0, None
-
-    # 2. Extract Area
+    if length_px == 0 or width_px == 0: 
+        return 0, None, [] # <--- Return empty array for early exit
+    
     clean_mask, vis, img = extract_placeable_area_multicolor(image_path, mask_path)
+    
     if clean_mask is None:
-        return 0, None
+        if img is None: 
+            img = cv2.imread(image_path)
+        clean_mask = np.zeros(img.shape[:2], dtype=np.uint8)
 
-    # 3. Orientation Logic (Try both, pick best)
-    # Portrait (W x L) vs Landscape (L x W) logic based on your script
+    if excluded_polygons is None:
+        excluded_polygons = []
+
+    if user_polygons:
+        for poly in user_polygons:
+            poly_id = poly.get("id")
+            points = np.array(poly.get("points"), dtype=np.int32)
+            
+            if poly_id in excluded_polygons:
+                cv2.fillPoly(clean_mask, [points], 0)
+            else:
+                cv2.fillPoly(clean_mask, [points], 255)
+
+    clean_mask = remove_excluded_polygons(clean_mask, polygons_path, excluded_polygons)
+
+    binary_mask = (clean_mask > 0).astype(np.uint8)
     
-    # Try Portrait (width as x, length as y)
-    count1, vis1 = place_panels(img, clean_mask, width_px, length_px, gap_px)
+    slots_portrait = get_panel_slots(binary_mask, width_px, length_px, gap_px)
+    slots_landscape = get_panel_slots(binary_mask, length_px, width_px, gap_px)
     
-    # Try Landscape
-    count2, vis2 = place_panels(img, clean_mask, length_px, width_px, gap_px)
+    count_p = sum(len(r) for r in slots_portrait)
+    count_l = sum(len(r) for r in slots_landscape)
     
-    best_vis = vis1 if count1 >= count2 else vis2
-    total_potential = max(count1, count2)
+    if count_p >= count_l:
+        best_slots = slots_portrait
+        pw, ph = width_px, length_px
+    else:
+        best_slots = slots_landscape
+        pw, ph = length_px, width_px
+        
+    # <--- NEW: Unpack 3 variables now
+    final_count, placement_vis, panels_data = draw_scattered_panels(img, best_slots, pw, ph, max_panels_limit)
     
-    # 4. Handle User Limit (if they didn't want 'max')
-    final_count = total_potential
-    if max_panels_limit is not None and max_panels_limit < total_potential:
-        final_count = max_panels_limit
-        # Note: Ideally we'd re-run placement with a stop condition, 
-        # but for visualization we might just return the text count difference here.
-    
-    return final_count, best_vis
+    return final_count, placement_vis, panels_data

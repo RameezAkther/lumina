@@ -1,16 +1,87 @@
-# React + Vite
+# Lumina Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repository contains the frontend application for the **Lumina** project, built using **React**, **Vite**, and **Tailwind CSS**. It provides a user interface for managing projects, analyzing data, and interacting with various workspace features.
 
-Currently, two official plugins are available:
+## 🔧 Technologies
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React** (v19)
+- **Vite** as the development build tool
+- **Tailwind CSS** for styling
+- **React Router** for client-side navigation
+- **Axios** for HTTP requests
+- **Recharts**, **React Tooltip**, and **Lucide React** for visual components
 
-## React Compiler
+## 🚀 Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js (recommended v18+)
+- npm (bundled with Node.js)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Installation
+
+```bash
+# Clone the repo (if not already done)
+git clone <repository-url>
+
+# Change directory
+git checkout <branch> # or navigate into the project folder
+cd lumina_frontend
+
+# Install dependencies
+npm install
+```
+
+### Development
+
+Start the development server using Vite:
+
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:5173` (default).
+
+### Building for Production
+
+```bash
+npm run build
+```
+
+### Previewing the Production Build
+
+```bash
+npm run preview
+```
+
+### Linting
+
+The project uses ESLint with basic configuration. Run:
+
+```bash
+npm run lint
+```
+
+## 📁 Project Structure
+
+```
+public/            # static files
+src/
+  api/             # axios configuration and API utilities
+  assets/          # images, icons, etc.
+  components/      # UI components
+  pages/           # route-level components
+  workspace/       # workspace-specific features and tools
+  App.jsx
+  main.jsx
+```
+
+## 📌 Notes
+
+- This frontend is configured as an ES module project (`"type": "module"` in package.json).
+- Tailwind CSS is integrated via PostCSS configuration.
+
+## 🛠️ Contributing
+
+Feel free to open issues or submit pull requests. Ensure code follows existing conventions and add appropriate documentation when modifying features.
+

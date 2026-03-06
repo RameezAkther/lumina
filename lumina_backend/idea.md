@@ -105,3 +105,130 @@ The Viewer renders images with the rooftop masks overlaid.
 10. **Predictive Analytics (Tab 4):**
 * **Forecasting:** Utilizing historical weather patterns and Time-Series Forecasting, the system predicts energy generation for the next **360 days**.
 * **Interactivity:** Users can adjust the forecast window (e.g., 30 days, 90 days, 1 year) to visualize short-term vs. long-term potential.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+To estimate the electricity generation for the **past 1 year** (historical analysis), you need to move from **Geometric Data** (what you have: area, count) to **Meteorological & Physical Data** (what you need: sun, location, efficiency).
+
+Here is the breakdown of the data required and the insights you can derive.
+
+### **1. The Core Formula**
+
+To calculate Energy () in kWh, the standard formula is:
+
+Where:
+
+*  = Total Solar Panel Area () (You have this)
+*  = Solar Panel Yield/Efficiency (%) (Need this)
+*  = Annual Solar Radiation on tilted panels () (Need this)
+*  = Performance Ratio (System losses) (Need this)
+
+---
+
+### **2. Essential Data You Need**
+
+#### **A. Location Data (Crucial)**
+
+Since the sun shines differently in Chennai vs. London, the system **must** know where the image was taken.
+
+* **Latitude & Longitude:**
+* *If utilizing GeoTIFFs:* Extract this from the image metadata.
+* *If utilizing PNG/JPG:* You must ask the user to input the location (e.g., "Chennai") or drop a pin on a map.
+
+
+
+#### **B. Panel Specifications**
+
+You have dimensions (), but you need the **power density**.
+
+* **Panel Efficiency ():** Typical residential panels are **20% to 22%** efficient.
+* **Rated Power ():** Alternatively, if you know a panel is 400W, Total Capacity () = .
+
+#### **C. Historical Meteorological Data (The "Past 1 Year" Part)**
+
+You need historical weather data for that specific Latitude/Longitude.
+
+* **GHI (Global Horizontal Irradiance):** The total amount of shortwave radiation received from above by a surface horizontal to the ground.
+* **Temperature:** Solar panels **lose efficiency** as they get hotter. Historical temperature data helps you apply a "temperature coefficient" loss.
+* **Sources:**
+* **NASA POWER API (Free):** Excellent for historical daily solar data.
+* **NREL PVWatts (Free):** Industry standard for estimation.
+* **OpenMeteo (Free):** Good historical weather API.
+
+
+
+---
+
+### **3. Advanced Parameters for Better Accuracy**
+
+To make your estimation "professional grade," consider these factors:
+
+* **Tilt & Azimuth (Orientation):**
+* **Tilt:** Roof slope. (e.g., 20°). If unknown, assume "Latitude Tilt" (optimal) or 0° (flat).
+* **Azimuth:** Direction (0° N, 180° S). South-facing panels generate more energy in the Northern Hemisphere.
+
+
+* **System Losses (Performance Ratio):**
+* **Inverter Efficiency:** DC to AC conversion loss (~4%).
+* **Soiling:** Dust/dirt on panels (~2-5% in dusty cities).
+* **Shading:** You already handled "structural" shading via segmentation, but "time-of-day" shading (e.g., a tree shadow moving across the roof at 4 PM) is a fixed loss factor (~3%).
+* *Standard Default:* Use **0.75 (75%)** as a safe Performance Ratio.
+
+
+
+---
+
+### **4. Metrics for "Good Insights"**
+
+Once you calculate the kWh generated, you can derive these valuable insights for the user:
+
+#### **A. Environmental Impact**
+
+* ** Offset:** Convert kWh to Carbon avoided.
+* *Factor:* ~0.7 kg  per kWh (varies by grid region, e.g., India's grid is coal-heavy, so the impact is higher).
+
+
+* **Equivalent Trees Planted:** A popular visualization.
+* *Factor:* ~1 kWh  0.04 trees planted.
+
+
+* **Equivalent Coal Burned:** Visualizes the "dirty" energy saved.
+
+#### **B. Financial Viability**
+
+* **Estimated Savings:** Total kWh  Local Electricity Rate (e.g., ₹8/unit or $0.15/kWh).
+* **Payback Period:** If you allow the user to input "Installation Cost," you can show how many years until the system pays for itself.
+
+#### **C. Grid Independence**
+
+* **Homes Powered:** "This rooftop can power **3.5 average households**."
+* *Factor:* Average household consumption (e.g., 250-300 kWh/month).
+
+
+
+---
+
+### **Recommended Implementation Plan**
+
+1. **Frontend Input:** Add a "Location" field (Search box with Google Maps/Mapbox autocomplete) to the `ProjectWorkspace` or `HistoricalAnalysis` tab.
+2. **Backend Integration:** Create a service that:
+* Takes `lat`, `lon`, `panel_capacity_kw`.
+* Calls the **NASA POWER API** (Endpoint: `daily`) for the date range `[Today - 365 days]` to `[Today]`.
+* Sum the daily solar irradiance.
+* Apply the efficiency formula.
+
+
+3. **Visualization:** Display a Line Chart showing "Energy Production" month-over-month for the last year (e.g., high in Summer, low in Monsoon/Winter).
+
+Would you like me to provide the **Python code to fetch historical solar data from NASA POWER API** based on lat/lon?

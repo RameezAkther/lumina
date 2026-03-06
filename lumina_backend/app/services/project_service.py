@@ -58,14 +58,37 @@ async def get_user_projects(db, user_id: str):
 
 
 async def update_project_status(db, project_id: str, status: str, **extra_fields):
-    """Update project status and any additional fields"""
-    update_data = {"status": status}
-    update_data.update(extra_fields)
+    """Update project status and any additional fields, but only if advancing in the workflow"""
+    # Define the workflow order - status can only move forward, not backward
+    workflow_order = {
+        "inference complete": 1,
+        "panel analysis complete": 2,
+        "historical analysis complete": 3,
+        "analysis complete": 4
+    }
     
-    await db["projects"].update_one(
-        {"_id": ObjectId(project_id)},
-        {"$set": update_data}
+    # Get current project status
+    project = await db["projects"].find_one({"_id": ObjectId(project_id)}, {"status": 1})
+    current_status = project.get("status") if project else None
+    
+    # Allow update if:
+    # 1. No current status (new project)
+    # 2. Current status not in workflow (e.g., "pending", "processing")
+    # 3. New status is later in workflow than current
+    should_update = (
+        current_status is None or
+        current_status not in workflow_order or
+        workflow_order.get(status, 0) > workflow_order.get(current_status, 0)
     )
+    
+    if should_update:
+        update_data = {"status": status}
+        update_data.update(extra_fields)
+        
+        await db["projects"].update_one(
+            {"_id": ObjectId(project_id)},
+            {"$set": update_data}
+        )
 
 
 async def delete_project(db, project_id: str, user_id: str, project_name: str):

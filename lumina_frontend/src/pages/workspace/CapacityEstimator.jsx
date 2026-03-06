@@ -1,82 +1,123 @@
 import { useState, useEffect } from 'react';
 import { Settings, Zap, CheckCircle, AlertTriangle, Loader2, Globe, MousePointer2, X, Eye, Image as ImageIcon } from 'lucide-react';
-import { getProjectImages, getProjectDetails } from '../../api/axios'; // <--- Added getProjectDetails
+import { getProjectImages, getProjectDetails } from '../../api/axios'; 
 import api from '../../api/axios';
 import ImageCanvas from './ImageCanvas'; 
 
+// --- PANEL PRESETS ---
+const PANEL_PRESETS = [
+  { label: "Standard 60-cell (1.65m x 0.99m)", length: 1.65, width: 0.99 },
+  { label: "Standard 72-cell (1.96m x 0.99m)", length: 1.96, width: 0.99 },
+  { label: "Large Commercial (2.28m x 1.13m)", length: 2.28, width: 1.13 },
+  { label: "Lumina Default (1.70m x 1.00m)", length: 1.7, width: 1.0 },
+];
+
 // --- EXTRACTED COMPONENT ---
-// 1. Removed Power Input
-const ConfigForm = ({ params, onParamChange }) => (
-  <div className="space-y-4 animate-in fade-in">
-    {/* GSD */}
-    <div>
-      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Image Resolution (GSD)</label>
-      <div className="flex gap-2">
-        <input 
-          type="number" step="0.001"
-          value={params.gsd}
-          onChange={(e) => onParamChange('gsd', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none"
-        />
-        <span className="p-2 text-xs text-gray-500 bg-gray-100 rounded">m/px</span>
-      </div>
-    </div>
+const ConfigForm = ({ params, onParamChange }) => {
+  // Determine if current dimensions match a preset
+  const currentPreset = PANEL_PRESETS.find(
+    p => p.length === parseFloat(params.panelLength) && p.width === parseFloat(params.panelWidth)
+  ) || { label: 'Custom' };
 
-    {/* Panels */}
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Panel Length (m)</label>
-        <input 
-          type="number" step="0.1" value={params.panelLength}
-          onChange={(e) => onParamChange('panelLength', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Panel Width (m)</label>
-        <input 
-          type="number" step="0.1" value={params.panelWidth}
-          onChange={(e) => onParamChange('panelWidth', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded text-sm"
-        />
-      </div>
-    </div>
+  const handlePresetChange = (e) => {
+    const selectedLabel = e.target.value;
+    const preset = PANEL_PRESETS.find(p => p.label === selectedLabel);
+    
+    if (preset) {
+      // Update both parameters sequentially
+      onParamChange('panelLength', preset.length);
+      onParamChange('panelWidth', preset.width);
+    }
+  };
 
-    {/* Constraints */}
-    <div>
-      <div className="flex justify-between items-center mb-2">
-        <label className="text-[10px] font-bold text-gray-500 uppercase">Quantity Limit</label>
-        <div className="flex items-center gap-2">
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      {/* GSD */}
+      <div>
+        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Image Resolution (GSD)</label>
+        <div className="flex gap-2">
           <input 
-            type="checkbox" 
-            checked={params.isMaxMode}
-            onChange={(e) => onParamChange('isMaxMode', e.target.checked)}
-            className="w-3 h-3 text-lumina-600 rounded cursor-pointer"
+            type="number" step="0.001"
+            value={params.gsd}
+            onChange={(e) => onParamChange('gsd', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none"
           />
-          <span className="text-xs text-gray-700">Maximize</span>
+          <span className="p-2 text-xs text-gray-500 bg-gray-100 rounded">m/px</span>
         </div>
       </div>
-      <input 
-        type="number" 
-        value={params.userPanelLimit}
-        onChange={(e) => onParamChange('userPanelLimit', e.target.value)}
-        disabled={params.isMaxMode}
-        className="w-full p-2 border border-gray-300 rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
-        placeholder={params.isMaxMode ? "Auto-calculate max" : "Enter limit"}
-      />
-    </div>
 
-    {/* Gap */}
-    <div>
-      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Panel Gap (m)</label>
-      <input 
-        type="number" step="0.01" value={params.gap}
-        onChange={(e) => onParamChange('gap', e.target.value)}
-        className="w-full p-2 border border-gray-300 rounded text-sm"
-      />
+      {/* Panels (Dropdown + Inputs) */}
+      <div className="space-y-3 bg-gray-50/50 p-3 rounded border border-gray-100">
+        <div>
+          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Panel Dimensions</label>
+          <select
+            value={currentPreset.label}
+            onChange={handlePresetChange}
+            className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none bg-white cursor-pointer"
+          >
+            <option value="Custom">Custom Dimensions...</option>
+            {PANEL_PRESETS.map(p => (
+              <option key={p.label} value={p.label}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Length (m)</label>
+            <input 
+              type="number" step="0.1" value={params.panelLength}
+              onChange={(e) => onParamChange('panelLength', e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Width (m)</label>
+            <input 
+              type="number" step="0.1" value={params.panelWidth}
+              onChange={(e) => onParamChange('panelWidth', e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Constraints */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">Quantity Limit</label>
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              checked={params.isMaxMode}
+              onChange={(e) => onParamChange('isMaxMode', e.target.checked)}
+              className="w-3 h-3 text-lumina-600 rounded cursor-pointer"
+            />
+            <span className="text-xs text-gray-700">Maximize</span>
+          </div>
+        </div>
+        <input 
+          type="number" 
+          value={params.userPanelLimit}
+          onChange={(e) => onParamChange('userPanelLimit', e.target.value)}
+          disabled={params.isMaxMode}
+          className="w-full p-2 border border-gray-300 rounded text-sm disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-lumina-500 outline-none"
+          placeholder={params.isMaxMode ? "Auto-calculate max" : "Enter limit"}
+        />
+      </div>
+
+      {/* Gap */}
+      <div>
+        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Panel Gap (m)</label>
+        <input 
+          type="number" step="0.01" value={params.gap}
+          onChange={(e) => onParamChange('gap', e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-lumina-500 outline-none"
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CapacityEstimator = ({ projectId }) => {
   // --- STATE ---
@@ -88,7 +129,7 @@ const CapacityEstimator = ({ projectId }) => {
   const [configMode, setConfigMode] = useState('global'); 
   const [modalImage, setModalImage] = useState(null);
 
-  // Parameters (Default) - Removed Power
+  // Parameters (Default)
   const defaultParams = {
     gsd: 0.075,
     panelLength: 1.7,
@@ -99,9 +140,7 @@ const CapacityEstimator = ({ projectId }) => {
   };
 
   const [params, setParams] = useState(defaultParams);
-  // Store the global config specifically so we can revert to it when switching modes
   const [globalParams, setGlobalParams] = useState(defaultParams);
-
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
@@ -109,19 +148,15 @@ const CapacityEstimator = ({ projectId }) => {
   useEffect(() => {
     const initData = async () => {
       try {
-        // A. Fetch Images
         const imgRes = await getProjectImages(projectId);
-        const validImages = imgRes.data.filter(img => img.is_source || !img.is_tiled);
+        // Include ALL images that have been processed (both parent and tiled)
+        const validImages = imgRes.data.filter(img => img.status === 'processed');
         setImages(validImages);
 
-        // B. Fetch Project Details (For Global Config Persistence)
         const projRes = await getProjectDetails(projectId);
         const savedConfig = projRes.data.solar_config;
 
-        // CHECK: Ensure savedConfig is not null/empty
         if (savedConfig && Object.keys(savedConfig).length > 0) {
-          
-          // Map backend snake_case to frontend camelCase
           const mappedConfig = {
             gsd: savedConfig.gsd ?? 0.075,
             panelLength: savedConfig.panel_length ?? 1.7,
@@ -131,11 +166,8 @@ const CapacityEstimator = ({ projectId }) => {
             userPanelLimit: savedConfig.max_panels || 50,
           };
 
-          // 1. Update the baseline global params
           setGlobalParams(mappedConfig);
           
-          // 2. IMPORTANT: If we are starting in 'global' mode (default), 
-          // we must overwrite the current 'params' state with these fetched values.
           if (configMode === 'global') {
              setParams(mappedConfig);
           }
@@ -152,28 +184,22 @@ const CapacityEstimator = ({ projectId }) => {
   }, [projectId]);
 
   // --- 2. HANDLERS ---
-
-  // Handle switching between Global and Individual
   const handleModeSwitch = (mode) => {
     setConfigMode(mode);
     setStatusMsg(null);
 
     if (mode === 'global') {
       setSelectedImageId(null);
-      setParams(globalParams); // Restore the saved global settings
-    } else {
-      // Individual mode: Don't change params yet, wait for user to select an image
+      setParams(globalParams); 
     }
   };
 
-  // Handle selecting an image in Individual Mode
   const handleImageSelect = (id) => {
     setSelectedImageId(id);
     setStatusMsg(null);
 
     const targetImg = images.find(img => img.id === id);
     
-    // Logic: If image has specific saved config, use it. Else use Global config as default.
     if (targetImg && targetImg.solar_config) {
       setParams({
         gsd: targetImg.solar_config.gsd,
@@ -184,7 +210,6 @@ const CapacityEstimator = ({ projectId }) => {
         userPanelLimit: targetImg.solar_config.max_panels || 50,
       });
     } else {
-      // Fallback to current global settings if this specific image hasn't been run yet
       setParams(globalParams); 
     }
   };
@@ -196,7 +221,6 @@ const CapacityEstimator = ({ projectId }) => {
   const runEstimation = async (e) => {
     if(e) e.preventDefault();
 
-    // Validation
     if (configMode === 'individual') {
       if (!selectedImageId) {
         setStatusMsg({ type: 'error', text: 'Please select an image from the list first.' });
@@ -225,18 +249,20 @@ const CapacityEstimator = ({ projectId }) => {
       const response = await api.post(`/projects/${projectId}/calculate_capacity`, payload);
       const results = response.data.results;
       
-      // Update Image List with results
       setImages(prev => prev.map(img => {
         const res = results.find(r => r.id === img.id);
         if (res) {
-          // Merge new solar data AND the config used into image object
-          // This ensures if we click away and come back, handleImageSelect finds the new config
-          return { ...img, ...res, solar_config: payload }; 
+          return { 
+            ...img, 
+            ...res, 
+            solar_panel_count: res.panels, 
+            solar_path: res.solar_url,     
+            solar_config: payload 
+          }; 
         }
         return img;
       }));
 
-      // If Global Mode, update our local Global Config reference so it sticks
       if (configMode === 'global') {
         setGlobalParams(params);
       }
@@ -386,7 +412,7 @@ const CapacityEstimator = ({ projectId }) => {
                     </div>
                   </div>
 
-                  {/* Right: Action Only (Removed Capacity kW) */}
+                  {/* Right: Action */}
                   <div className="flex items-center gap-6">
                     {img.solar_path ? (
                       <button 
