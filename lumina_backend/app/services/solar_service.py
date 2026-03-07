@@ -3,9 +3,11 @@ Solar service - handles solar panel placement and capacity calculation
 """
 import os
 import cv2
-from panel_placement.panel_placement import run_solar_placement
-from app.core.config import settings
 import time
+
+from app.core.config import settings
+
+from panel_placement.panel_placement import run_solar_placement
 
 async def calculate_solar_capacity(db, project_id: str, images: list, solar_dir: str, params) -> dict:
     """Calculate solar capacity for a list of images"""
@@ -88,3 +90,4 @@ async def save_solar_visualization(img: dict, vis_img, solar_dir: str) -> tuple:
         solar_url = None
     
     return solar_url, solar_path
+

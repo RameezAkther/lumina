@@ -4,6 +4,7 @@ File utilities - handles file I/O and image tiling operations
 import os
 from typing import List
 from PIL import Image
+
 from fastapi import UploadFile
 
 
@@ -40,7 +41,6 @@ async def analyze_file(file: UploadFile) -> dict:
             "recommended_sizes": []
         }
 
-
 def create_image_tiles(image_path: str, tile_size: int, output_dir: str, base_filename: str) -> List[dict]:
     """Create tiles from an image and return tile metadata"""
     tiles_metadata = []
@@ -76,7 +76,6 @@ def create_image_tiles(image_path: str, tile_size: int, output_dir: str, base_fi
                 tile_seq += 1
     
     return tiles_metadata, original_width, original_height
-
 
 def save_uploaded_file(file: UploadFile, output_path: str):
     """Save uploaded file to disk"""

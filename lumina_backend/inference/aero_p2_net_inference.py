@@ -1,13 +1,13 @@
-import torch
-import numpy as np
-import cv2
 import os
+import cv2
+import numpy as np
 from pathlib import Path
-from ultralytics import YOLO
+
+import torch
 import torch.nn.functional as F
 
-# --- IMPORTS ---
-# Assuming ModelSelector is available in your backend just like in ResAttUNet
+from ultralytics import YOLO
+
 from inference.best_model import ModelSelector 
 
 # --- CONFIGURATION ---
@@ -44,7 +44,6 @@ YOLO_REGISTRY = {
 }
 
 # --- 2. INFERENCE UTILS ---
-
 def load_yolo_model(checkpoint_path):
     print(f"Loading YOLO weights from {checkpoint_path}...")
     if not os.path.exists(checkpoint_path):
@@ -55,7 +54,6 @@ def load_yolo_model(checkpoint_path):
     return model
 
 # --- 3. STRATEGIES ---
-
 def predict_yolo_mask(model, image, imgsz, conf):
     """
     Runs YOLO inference and combines all instance segmentation masks 
@@ -94,7 +92,6 @@ def predict_yolo_mask(model, image, imgsz, conf):
     return combined_mask
 
 # --- 3.5 SMART POST-PROCESSING ---
-
 def refine_mask_with_image(mask, image, poly_epsilon=0.003):
     """
     Uses the original image's texture/color (via GrabCut) to snap mask edges 
@@ -147,7 +144,6 @@ def refine_mask_with_image(mask, image, poly_epsilon=0.003):
     return final_canvas
 
 # --- 4. MAIN CONTROLLER ---
-
 def run_yolo_inference(requested_mode, input_image_path, output_dir):
     """
     Backend controller for YOLO models.

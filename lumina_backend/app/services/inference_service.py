@@ -6,15 +6,16 @@ import cv2
 import numpy as np
 import time
 from typing import List
+
 from app.utils.polygons import generate_polygons_from_mask
 from app.utils.smart_retiling import apply_smart_retiling
+
 from inference.resattunet_inference import run_resattunet_inference
 from inference.aero_p2_net_inference import run_yolo_inference
 
 # ==================== GLOBAL CONFIG ====================
 # Enable/disable loading cached masks instead of running inference
 CACHED_MASKS_ENABLED = True
-
 # Directory where previously inferred masks are stored
 CACHED_MASKS_DIR = r"C:\Users\acer\Desktop\DroneVision2\dataset\masks"
 
@@ -117,7 +118,6 @@ async def run_inference_on_image(db, project_id: str, src_img: dict, model_name:
     
     return full_mask_path, full_mask_array
 
-
 async def detect_tile_size(db, project_id: str, src_img: dict, tiling_config: dict) -> int:
     """Detect tile size from database or config"""
     tile_size = None
@@ -145,7 +145,6 @@ async def detect_tile_size(db, project_id: str, src_img: dict, tiling_config: di
             tile_size = int(val)
     
     return tile_size
-
 
 async def apply_retiling(db, project_id: str, src_img: dict, full_mask_path: str,
                         tile_size: int, images_dir: str, masks_dir: str):

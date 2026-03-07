@@ -1,4 +1,3 @@
-# app/services/weather_service.py
 import httpx
 import datetime
 import numpy as np
@@ -153,3 +152,4 @@ def calculate_historical_stats(raw_data, system_capacity_kw=1.0):
         "monthly_chart_data": monthly_averages,
         "raw_historical_data": historical_time_series
     }
+

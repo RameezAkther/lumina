@@ -1,12 +1,12 @@
-import torch
-import numpy as np
-import cv2
 import os
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+import cv2
+import numpy as np
 from pathlib import Path
 
-# --- IMPORTS ---
+import torch
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
 from model_scripts.resattunet_model import ResAttUNet 
 from inference.best_model import ModelSelector 
 
@@ -43,7 +43,6 @@ RESATTUNET_REGISTRY = {
 }
 
 # --- 2. INFERENCE UTILS ---
-
 def load_model(checkpoint_path, in_channels=3, out_channels=1):
     print(f"Loading ResAttUNet weights from {checkpoint_path}...")
     model = ResAttUNet(in_channels=in_channels, out_channels=out_channels).to(DEVICE)
@@ -61,7 +60,6 @@ def load_model(checkpoint_path, in_channels=3, out_channels=1):
     return model
 
 # --- 3. STRATEGIES ---
-
 def predict_resize(model, image, input_size):
     original_h, original_w = image.shape[:2]
     transform = A.Compose([
@@ -117,7 +115,6 @@ def predict_sliding_window(model, image, patch_size):
     return binary_mask
 
 # --- 3.5 SMART POST-PROCESSING ---
-
 def refine_mask_with_image(mask, image, poly_epsilon=0.003, 
                            min_building_area_thresh=1500, 
                            max_acceptable_elongation=1.5):
@@ -223,7 +220,6 @@ def refine_mask_with_image(mask, image, poly_epsilon=0.003,
     return final_canvas
 
 # --- 4. MAIN CONTROLLER ---
-
 def run_resattunet_inference(requested_mode, input_image_path, output_dir):
     """
     Args:

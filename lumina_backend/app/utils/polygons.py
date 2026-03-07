@@ -1,4 +1,3 @@
-# app/utils/polygons.py
 import cv2
 import numpy as np
 import json

@@ -3,12 +3,13 @@ Project service - handles project CRUD operations and status management
 """
 from datetime import datetime
 from bson import ObjectId
-from fastapi import HTTPException
-from app.core.config import settings
-from app.db.mongodb import serialize_doc
 import os
 import shutil
 
+from fastapi import HTTPException
+
+from app.core.config import settings
+from app.db.mongodb import serialize_doc
 
 async def create_project_doc(db, user_id: str, project_name: str, tiling_config: dict):
     """Create a new project document in database"""

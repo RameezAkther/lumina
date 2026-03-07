@@ -4,9 +4,10 @@ Projects router - orchestrates project operations using service modules
 import json
 import os
 from typing import List
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Body
 from bson import ObjectId
 import uuid
+
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Body
 
 from app.core.security import get_current_user
 from app.db.mongodb import get_database
@@ -15,14 +16,23 @@ from app.schemas.project import (
     FileAnalysisResult, SolarParams, LocationParams, UserPolygonPayload,
     UserPanelPayload, ForecastParams
 )
-
-# Import services
-from app.services import project_service, image_service, inference_service, solar_service, weather_service, forecasting_service
+from app.services import (
+    project_service, image_service, inference_service, 
+    solar_service, weather_service, forecasting_service
+)
 from app.utils.file_utils import analyze_file, create_image_tiles, save_uploaded_file
 
 router = APIRouter()
 
 # ==================== FILE ANALYSIS ====================
+"""
+Endpoint: POST /analyze
+Analyzes uploaded files to determine their dimensions and tiling requirements.
+Paramaters:
+  - files: List of image files to analyze
+Returns:
+  - AnalysisResponse containing metadata for each analyzed file (dimensions, format, etc.)
+"""
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_files(files: List[UploadFile] = File(...)):
     """Analyze uploaded files for tiling requirements"""
@@ -34,8 +44,15 @@ async def analyze_files(files: List[UploadFile] = File(...)):
 
     return {"results": results}
 
-
 # ==================== PROJECT CRUD ====================
+"""
+Endpoint: GET /
+Retrieves all projects belonging to the authenticated user.
+Parameters:
+  - current_user: Authenticated user from JWT token
+Returns:
+  - List of ProjectListResponse objects containing project metadata
+"""
 @router.get("/", response_model=List[ProjectListResponse])
 async def get_user_projects(
     current_user: dict = Depends(get_current_user),
@@ -45,6 +62,15 @@ async def get_user_projects(
     user_id = str(current_user["_id"])
     return await project_service.get_user_projects(db, user_id)
 
+"""
+Endpoint: DELETE /{project_id}
+Deletes a project and all associated files/images from storage and database.
+Parameters:
+  - project_id: ID of the project to delete
+  - current_user: Authenticated user (must be project owner)
+Returns:
+  - HTTP 204 No Content on success
+"""
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: str,
@@ -62,6 +88,17 @@ async def delete_project(
     
     return None
 
+"""
+Endpoint: POST /{project_id}/inference
+Runs deep learning model inference on all source images in a project to generate segmentation masks.
+Applies smart retiling to organize masks based on detected tile sizes.
+Parameters:
+  - project_id: ID of the project to run inference on
+  - model_name: Name of the model to use for inference (e.g., 'yolo', 'segformer')
+  - current_user: Authenticated user
+Returns:
+  - Success message with count of processed source images
+"""
 @router.post("/{project_id}/inference")
 async def perform_inference(
     project_id: str,
@@ -118,6 +155,18 @@ async def perform_inference(
         "processed_sources": processed_count
     }
 
+"""
+Endpoint: POST /create
+Creates a new project and uploads image files. Optionally tiles images based on provided configuration.
+Handles file storage, creates display copies, and initializes project database records.
+Parameters:
+  - project_name: Name for the new project
+  - tiling_config_str: JSON string mapping filenames to tile sizes (optional)
+  - files: List of image files to upload
+  - current_user: Authenticated user (project owner)
+Returns:
+  - ProjectCreateResponse with project ID, name, image count, and tiling status
+"""
 @router.post("/create", response_model=ProjectCreateResponse)
 async def create_project(
     project_name: str = Form(...),
@@ -230,8 +279,16 @@ async def create_project(
         "message": "Project created successfully"
     }
 
-
 # ==================== IMAGE OPERATIONS ====================
+"""
+Endpoint: GET /{project_id}/images
+Retrrieves all images associated with a project, including display URLs and metadata.
+Parameters:
+  - project_id: ID of the project
+  - current_user: Authenticated user
+Returns:
+  - List of image objects with metadata and accessible URLs
+"""
 @router.get("/{project_id}/images")
 async def get_project_images(
     project_id: str,
@@ -241,7 +298,15 @@ async def get_project_images(
     """Get all images for a project with URLs"""
     return await image_service.get_project_images(db, project_id)
 
-
+"""
+Endpoint: GET /{project_id}/panel_count
+Calculates and returns the total solar panel count across all images in a project.
+Parameters:
+  - project_id: ID of the project
+  - current_user: Authenticated user
+Returns:
+  - Dictionary with project_id and total_panels count
+"""
 @router.get("/{project_id}/panel_count")
 async def get_project_panel_count(
     project_id: str,
@@ -256,6 +321,16 @@ async def get_project_panel_count(
 
     return {"project_id": project_id, "total_panels": int(total_panels)}
 
+"""
+Endpoint: POST /images/{image_id}/update_selection
+Updates the list of excluded polygons for an image, allowing users to deselect detected panels.
+Parameters:
+  - image_id: ID of the image to update
+  - payload: Dictionary containing 'excluded_ids' array of polygon IDs to exclude
+  - current_user: Authenticated user
+Returns:
+  - Success message with count of excluded polygons
+"""
 @router.post("/images/{image_id}/update_selection")
 async def update_image_selection(
     image_id: str,
@@ -269,6 +344,17 @@ async def update_image_selection(
     
     return {"message": "Selection updated", "excluded_count": excluded_count}
 
+"""
+Endpoint: POST /{project_id}/calculate_capacity
+Calculates solar capacity based on detected panels, panel specifications, and optional geographic constraints.
+Can operate in global mode (entire project) or image-specific mode.
+Parameters:
+  - project_id: ID of the project
+  - params: SolarParams object with panel specifications and optional image_id
+  - current_user: Authenticated user
+Returns:
+  - Solar capacity analysis results with system metrics
+"""
 @router.post("/{project_id}/calculate_capacity")
 async def calculate_capacity(
     project_id: str,
@@ -282,9 +368,7 @@ async def calculate_capacity(
     # Fetch project
     project = await project_service.get_project_by_id(db, project_id)
     
-    # --- NEW: Save Global Config Persistence ---
-    # If running in Global Mode (image_id is None), save these params to the Project document
-    # This allows the frontend to reload these settings next time the user opens the project.
+    # --- Save Global Config Persistence ---
     if not params.image_id:
         await db["projects"].update_one(
             {"_id": ObjectId(project_id)},
@@ -310,6 +394,15 @@ async def calculate_capacity(
     
     return result
 
+"""
+Endpoint: GET /{project_id}
+Retrrieves detailed information about a specific project including metadata, status, and saved analysis results.
+Parameters:
+  - project_id: ID of the project to retrieve
+  - current_user: Authenticated user (must be project owner)
+Returns:
+  - ProjectListResponse with full project details
+"""
 @router.get("/{project_id}", response_model=ProjectListResponse)
 async def get_project_details(
     project_id: str,
@@ -333,6 +426,18 @@ async def get_project_details(
         "historical_results": project.get("historical_results", {})
     }
 
+"""
+Endpoint: POST /{project_id}/historical_analysis
+Performs historical solar energy analysis using location data and NASA POWER API.
+Geocodes the provided location, fetches historical solar irradiance data, and calculates performance metrics.
+Can operate in global mode (entire project) or image-specific mode.
+Parameters:
+  - project_id: ID of the project
+  - params: LocationParams with country, state, district, area, panel capacity, and optional image_id
+  - current_user: Authenticated user
+Returns:
+  - Analysis results with location coordinates, system size, and historical performance metrics
+"""
 @router.post("/{project_id}/historical_analysis")
 async def perform_historical_analysis(
     project_id: str,
@@ -427,6 +532,16 @@ async def perform_historical_analysis(
         "metrics": analysis_result
     }
 
+"""
+Endpoint: POST /images/{image_id}/user_polygons
+Saves a custom polygon (manual annotation) drawn by the user to an image.
+Parameters:
+  - image_id: ID of the image
+  - payload: UserPolygonPayload containing polygon coordinates
+  - current_user: Authenticated user
+Returns:
+  - Saved polygon document with generated unique ID
+"""
 @router.post("/images/{image_id}/user_polygons")
 async def save_user_polygon(
     image_id: str,
@@ -460,6 +575,16 @@ async def save_user_polygon(
         "data": polygon_doc
     }
 
+"""
+Endpoint: DELETE /images/{image_id}/user_polygons/{poly_id}
+Removes a custom polygon annotation from an image.
+Parameters:
+  - image_id: ID of the image
+  - poly_id: ID of the polygon to remove
+  - current_user: Authenticated user
+Returns:
+  - Success message confirming deletion
+"""
 @router.delete("/images/{image_id}/user_polygons/{poly_id}")
 async def remove_user_polygon(
     image_id: str,
@@ -487,7 +612,16 @@ async def remove_user_polygon(
     return {"message": "Polygon deleted successfully"}
 
 # ==================== INTERACTIVE PANELS ====================
-
+"""
+Endpoint: POST /images/{image_id}/panels
+Adds a manually placed solar panel to an image and increments the total panel count.
+Parameters:
+  - image_id: ID of the image
+  - payload: UserPanelPayload containing panel location and metadata
+  - current_user: Authenticated user
+Returns:
+  - Success message with saved panel data
+"""
 @router.post("/images/{image_id}/panels")
 async def add_custom_panel(
     image_id: str,
@@ -513,6 +647,16 @@ async def add_custom_panel(
         
     return {"message": "Panel added successfully", "data": panel_doc}
 
+"""
+Endpoint: DELETE /images/{image_id}/panels/{panel_id}
+Removes a specific manually placed solar panel and decrements the total panel count.
+Parameters:
+  - image_id: ID of the image
+  - panel_id: ID of the specific panel to remove
+  - current_user: Authenticated user
+Returns:
+  - Success message confirming deletion
+"""
 @router.delete("/images/{image_id}/panels/{panel_id}")
 async def remove_custom_panel(
     image_id: str,
@@ -536,6 +680,15 @@ async def remove_custom_panel(
         
     return {"message": "Panel deleted successfully"}
 
+"""
+Endpoint: DELETE /images/{image_id}/panels
+Clears all manually placed solar panels from an image and resets the panel count to zero.
+Parameters:
+  - image_id: ID of the image
+  - current_user: Authenticated user
+Returns:
+  - Success message confirming all panels cleared
+"""
 @router.delete("/images/{image_id}/panels")
 async def clear_all_panels(
     image_id: str,
@@ -557,6 +710,18 @@ async def clear_all_panels(
     
     return {"message": "All panels cleared successfully"}
 
+"""
+Endpoint: POST /{project_id}/forecast
+Generates an advanced solar energy forecast using historical data and user-specified economic parameters.
+Supports smart caching for page refresh scenarios and currency conversion logic.
+Can operate in global mode (entire project) or image-specific mode.
+Parameters:
+  - project_id: ID of the project
+  - params: ForecastParams with system cost, electricity rate, currency, and optional image_id
+  - current_user: Authenticated user
+Returns:
+  - Comprehensive forecast report with energy production estimates and financial metrics
+"""
 @router.post("/{project_id}/forecast")
 async def generate_forecast(
     project_id: str,

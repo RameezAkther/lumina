@@ -1,10 +1,11 @@
+import os
+import glob
+from PIL import Image
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
-from PIL import Image
-import os
-import glob
 
 # --- CONFIGURATION ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

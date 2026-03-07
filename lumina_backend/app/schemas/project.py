@@ -1,4 +1,3 @@
-# app/schemas/project.py
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -49,8 +48,8 @@ class LocationParams(BaseModel):
     state: str
     district: str
     area: Optional[str] = None
-    panel_capacity_kw: Optional[float] = 0.4 # Default 400W
-    image_id: Optional[str] = None # If None, applies globally
+    panel_capacity_kw: Optional[float] = 0.4
+    image_id: Optional[str] = None
 
 class UserPolygonPayload(BaseModel):
     points: List[List[float]]
@@ -68,7 +67,5 @@ class ForecastParams(BaseModel):
     cost_per_panel: Optional[float] = None
     currency: Optional[str] = None
     image_id: Optional[str] = None
-    
-    # New flags for smart handling
     is_initial_load: Optional[bool] = False
     target_currency_for_conversion: Optional[str] = None

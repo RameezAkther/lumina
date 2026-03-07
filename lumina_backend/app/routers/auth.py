@@ -1,10 +1,12 @@
+import random
+
 from fastapi import APIRouter, HTTPException, status, Depends, Response
+from fastapi.security import OAuth2PasswordRequestForm
+
+from app.db.mongodb import get_database
+from app.core.config import settings
 from app.schemas.user import UserCreate, UserResponse, Token, PasswordChange, DeleteAccountRequest
 from app.core.security import get_password_hash, verify_password, create_access_token, get_current_user
-from app.db.mongodb import get_database
-from fastapi.security import OAuth2PasswordRequestForm
-import random
-from app.core.config import settings
 
 router = APIRouter()
 

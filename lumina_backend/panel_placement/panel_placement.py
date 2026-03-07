@@ -2,7 +2,7 @@ import os
 import json
 import cv2
 import numpy as np
-import uuid # <-- NEW: For generating unique panel IDs
+import uuid
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
@@ -226,7 +226,7 @@ def run_solar_placement(image_path, mask_path, gsd, panel_l, panel_w, gap_m, max
     gap_px = max(1, round(gap_m / gsd))
     
     if length_px == 0 or width_px == 0: 
-        return 0, None, [] # <--- Return empty array for early exit
+        return 0, None, []
     
     clean_mask, vis, img = extract_placeable_area_multicolor(image_path, mask_path)
     
@@ -264,8 +264,7 @@ def run_solar_placement(image_path, mask_path, gsd, panel_l, panel_w, gap_m, max
     else:
         best_slots = slots_landscape
         pw, ph = length_px, width_px
-        
-    # <--- NEW: Unpack 3 variables now
+    
     final_count, placement_vis, panels_data = draw_scattered_panels(img, best_slots, pw, ph, max_panels_limit)
     
     return final_count, placement_vis, panels_data

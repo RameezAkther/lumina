@@ -1,15 +1,14 @@
-# app/services/forecasting_service.py
 import httpx
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ExpSineSquared, WhiteKernel
-
 
 # --- GLOBAL BASE DEFAULTS (USD) ---
 BASE_USD_COST_PER_PANEL = 250.0
 BASE_USD_ELECTRICITY_RATE = 0.15
 BASE_USD_SYSTEM_COST = 5000.0
 
+# --- 0. LOCALIZATION FUNCTION ---
 async def get_localized_defaults(country_name: str) -> dict:
     """
     Determines the local currency for a given country and converts standard USD 
