@@ -147,7 +147,6 @@ lumina_backend/
 Lumina supports multiple state-of-the-art segmentation models:
 
 - **ResAttUNet**: Residual Attention U-Net for precise rooftop detection
-- **SegFormer**: Transformer-based segmentation for complex roof structures
 - **YOLO-based Segmentation**: Real-time object detection integration
 
 Models are pre-trained on datasets including:
@@ -155,6 +154,8 @@ Models are pre-trained on datasets including:
 - WHU Building Dataset
 - NACALA Dataset
 - AIRS Dataset
+
+Refer the readme of lumina_experiments for model training and trained model weights
 
 ## 🔧 Configuration
 
